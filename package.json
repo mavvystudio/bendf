@@ -1,0 +1,17 @@
+{
+  "name": "bendf-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pnpm --filter bendf build",
+    "demo:dev": "pnpm --filter demo dev",
+    "bendf": "pnpm --filter bendf build && node framework/bendf/dist/cli.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "packageManager": "pnpm@8.15.2"
+}
