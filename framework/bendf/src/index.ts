@@ -10,7 +10,6 @@ interface ApiRoute {
   routePath: string;
   handler: (params: any) => Promise<any>;
   input?: z.ZodSchema;
-  queryParams?: z.ZodSchema;
   response?: z.ZodSchema;
   roles?: string[];
 }
@@ -18,6 +17,7 @@ interface ApiRoute {
 export class BendfApp {
   private readonly port: number;
   private routes: Map<string, ApiRoute> = new Map();
+  private dynamicRoutes: ApiRoute[] = [];
   private server?: any;
   private authorizer?: (context: { req: IncomingMessage, res: ServerResponse, roles: string[] }) => Promise<boolean>;
 
@@ -71,13 +71,16 @@ export class BendfApp {
                 routePath: module.routePath,
                 handler: module.handler,
                 input: module.input,
-                queryParams: module.queryParams,
                 response: module.response,
                 roles: module.roles
               };
               
-              const key = `${route.method}:${route.routePath}`;
-              this.routes.set(key, route);
+              if (route.routePath.includes('{')) {
+                this.dynamicRoutes.push(route);
+              } else {
+                const key = `${route.method}:${route.routePath}`;
+                this.routes.set(key, route);
+              }
               
               const roleInfo = route.roles ? ` (roles: ${route.roles.join(', ')})` : '';
               console.log(`Loaded route: ${route.method} ${route.routePath}${roleInfo}`);
@@ -98,7 +101,17 @@ export class BendfApp {
     const pathname = url.pathname || '/';
     
     const routeKey = `${method}:${pathname}`;
-    const route = this.routes.get(routeKey);
+    let route = this.routes.get(routeKey);
+    let pathParams: Record<string, string> = {};
+    
+    if (!route) {
+      // Try to match dynamic routes
+      const matchedRoute = this.findDynamicRoute(method, pathname);
+      if (matchedRoute) {
+        route = matchedRoute.route;
+        pathParams = matchedRoute.params;
+      }
+    }
     
     if (!route) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -135,8 +148,8 @@ export class BendfApp {
         }
       }
       
-      if (route.queryParams && Object.keys(url.query).length > 0) {
-        requestData.queryParams = route.queryParams.parse(url.query);
+      if (Object.keys(pathParams).length > 0) {
+        requestData.queryParams = pathParams;
       }
       
       const result = await route.handler(requestData);
@@ -204,6 +217,44 @@ export class BendfApp {
     if (this.server) {
       this.server.close();
     }
+  }
+
+  private findDynamicRoute(method: string, pathname: string): { route: ApiRoute, params: Record<string, string> } | null {
+    for (const route of this.dynamicRoutes) {
+      if (route.method.toUpperCase() !== method.toUpperCase()) continue;
+      
+      const match = this.matchPath(route.routePath, pathname);
+      if (match) {
+        return { route, params: match };
+      }
+    }
+    return null;
+  }
+
+  private matchPath(pattern: string, path: string): Record<string, string> | null {
+    const patternParts = pattern.split('/');
+    const pathParts = path.split('/');
+    
+    if (patternParts.length !== pathParts.length) {
+      return null;
+    }
+    
+    const params: Record<string, string> = {};
+    
+    for (let i = 0; i < patternParts.length; i++) {
+      const patternPart = patternParts[i];
+      const pathPart = pathParts[i];
+      
+      if (patternPart.startsWith('{') && patternPart.endsWith('}')) {
+        // Extract parameter name from {param_name}
+        const paramName = patternPart.slice(1, -1);
+        params[paramName] = pathPart;
+      } else if (patternPart !== pathPart) {
+        return null;
+      }
+    }
+    
+    return params;
   }
 }
 
