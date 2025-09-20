@@ -5,7 +5,7 @@ export const routePath = '/upload';
 
 export const method = 'POST';
 
-export const input = z.object({
+export const inputFile = z.object({
   description: z.string().optional(),
 });
 
@@ -21,10 +21,10 @@ export const response = z.object({
 export const handler = uploadFile;
 
 async function uploadFile(params: { 
-  input?: z.infer<typeof input>,
+  input?: z.infer<typeof inputFile>,
   files?: Record<string, UploadedFile | UploadedFile[]>
 }) {
-  const { input, files } = params;
+  const { files } = params;
   
   if (!files || Object.keys(files).length === 0) {
     throw new Error('No files uploaded');
@@ -57,7 +57,7 @@ async function uploadFile(params: {
   }
 
   return {
-    message: `Successfully uploaded ${fileInfos.length} file(s)${input?.description ? `. Description: ${input.description}` : ''}`,
+    message: `Successfully uploaded ${fileInfos.length} file(s)${inputFile?.description ? `. Description: ${inputFile.description}` : ''}`,
     files: fileInfos,
   };
 }

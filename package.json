@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "pnpm --filter bendf build",
-    "demo:dev": "pnpm --filter demo dev",
+    "dev": "pnpm --filter demo dev",
     "bendf": "pnpm --filter bendf build && node framework/bendf/dist/cli.js"
   },
   "keywords": [],
