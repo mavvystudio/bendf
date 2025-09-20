@@ -5,6 +5,13 @@ import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { z } from 'zod';
 
+export interface UploadedFile {
+  filename: string;
+  mimetype: string;
+  buffer: Buffer;
+  size: number;
+}
+
 interface ApiRoute {
   method: string;
   routePath: string;
@@ -139,12 +146,28 @@ export class BendfApp {
     try {
       let requestData: any = {};
       
+      const contentType = req.headers['content-type'] || '';
+      
       if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-        const body = await this.getRequestBody(req);
-        if (route.input) {
-          requestData.input = route.input.parse(JSON.parse(body));
+        if (contentType.includes('multipart/form-data')) {
+          const formData = await this.parseMultipartData(req);
+          if (formData.fields && Object.keys(formData.fields).length > 0) {
+            if (route.input) {
+              requestData.input = route.input.parse(formData.fields);
+            } else {
+              requestData.input = formData.fields;
+            }
+          }
+          if (formData.files && Object.keys(formData.files).length > 0) {
+            requestData.files = formData.files;
+          }
         } else {
-          requestData.input = JSON.parse(body);
+          const body = await this.getRequestBody(req);
+          if (route.input) {
+            requestData.input = route.input.parse(JSON.parse(body));
+          } else {
+            requestData.input = JSON.parse(body);
+          }
         }
       }
       
@@ -179,6 +202,107 @@ export class BendfApp {
       req.on('end', () => resolve(body));
       req.on('error', reject);
     });
+  }
+
+  private parseMultipartData(req: IncomingMessage): Promise<{ fields: Record<string, any>, files: Record<string, UploadedFile | UploadedFile[]> }> {
+    return new Promise((resolve, reject) => {
+      const contentType = req.headers['content-type'] || '';
+      const boundaryMatch = contentType.match(/boundary=(.+)$/);
+      
+      if (!boundaryMatch) {
+        return reject(new Error('Missing boundary in multipart data'));
+      }
+      
+      const boundary = '--' + boundaryMatch[1];
+      const fields: Record<string, any> = {};
+      const files: Record<string, UploadedFile | UploadedFile[]> = {};
+      
+      let buffer = Buffer.alloc(0);
+      
+      req.on('data', (chunk: Buffer) => {
+        buffer = Buffer.concat([buffer, chunk]);
+      });
+      
+      req.on('end', () => {
+        try {
+          this.processMultipartBuffer(buffer, boundary, fields, files);
+          resolve({ fields, files });
+        } catch (error) {
+          reject(error);
+        }
+      });
+      
+      req.on('error', reject);
+    });
+  }
+
+  private processMultipartBuffer(
+    buffer: Buffer, 
+    boundary: string, 
+    fields: Record<string, any>, 
+    files: Record<string, UploadedFile | UploadedFile[]>
+  ): void {
+    const parts = buffer.toString('binary').split(boundary);
+    
+    for (const part of parts) {
+      if (part.trim() === '' || part.trim() === '--') continue;
+      
+      const [headers, ...bodyParts] = part.split('\r\n\r\n');
+      if (!headers || bodyParts.length === 0) continue;
+      
+      const body = bodyParts.join('\r\n\r\n').replace(/\r\n$/, '');
+      const headerLines = headers.split('\r\n');
+      
+      let name = '';
+      let filename = '';
+      let contentType = 'text/plain';
+      
+      for (const header of headerLines) {
+        const dispositionMatch = header.match(/Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]+)")?/);
+        if (dispositionMatch) {
+          name = dispositionMatch[1];
+          filename = dispositionMatch[2] || '';
+        }
+        
+        const typeMatch = header.match(/Content-Type: (.+)/);
+        if (typeMatch) {
+          contentType = typeMatch[1];
+        }
+      }
+      
+      if (!name) continue;
+      
+      if (filename) {
+        // This is a file
+        const fileBuffer = Buffer.from(body, 'binary');
+        const file: UploadedFile = {
+          filename,
+          mimetype: contentType,
+          buffer: fileBuffer,
+          size: fileBuffer.length
+        };
+        
+        if (files[name]) {
+          // Multiple files with same name
+          if (Array.isArray(files[name])) {
+            (files[name] as UploadedFile[]).push(file);
+          } else {
+            files[name] = [files[name] as UploadedFile, file];
+          }
+        } else {
+          files[name] = file;
+        }
+      } else {
+        // This is a regular field
+        try {
+          // Try to parse as JSON first
+          fields[name] = JSON.parse(body);
+        } catch {
+          // If not JSON, store as string
+          fields[name] = body;
+        }
+      }
+    }
   }
 
   async listen(callback?: () => void): Promise<void> {
