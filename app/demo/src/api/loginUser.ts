@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import jwt from "jsonwebtoken";
+import * as argon2 from "argon2";
+import { prisma } from "../lib/db";
 
 export const input = z.object({
   email: z.string(),
@@ -26,8 +26,19 @@ async function loginUser(params: { input: z.infer<typeof input> }) {
   if (!user) {
     throw new Error('User not found');
   }
-  if (user.password !== password) {
+  const isValidPassword = await argon2.verify(user.password, password);
+  if (!isValidPassword) {
     throw new Error('Invalid password');
   }
-  return { token: '1234567890' };
+  if (!user.clientToken) {
+    console.log('user', user);
+    throw new Error('Client token not found');
+  }
+  const token = jwt.sign(
+    { clientToken: user.clientToken },
+    process.env.JWT_SECRET as string,
+    { expiresIn: '24h' }
+  );
+
+  return { token };
 }

@@ -26,7 +26,7 @@ export class BendfApp {
   private routes: Map<string, ApiRoute> = new Map();
   private dynamicRoutes: ApiRoute[] = [];
   private server?: any;
-  private authorizer?: (context: { req: IncomingMessage, res: ServerResponse, roles: string[] }) => Promise<boolean>;
+  private authorizer?: (context: { req: IncomingMessage, res: ServerResponse, roles: string[] }) => Promise<any>;
 
   constructor() {
     const envPort = (globalThis as any)?.process?.env?.PORT;
@@ -127,10 +127,11 @@ export class BendfApp {
     }
 
     // Check authorization if route has roles and authorizer exists
+    let authData: any = undefined;
     if (route.roles && route.roles.length > 0 && this.authorizer) {
       try {
-        const isAuthorized = await this.authorizer({ req, res, roles: route.roles });
-        if (!isAuthorized) {
+        authData = await this.authorizer({ req, res, roles: route.roles });
+        if (!authData) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Forbidden', message: 'Insufficient permissions' }));
           return;
@@ -174,7 +175,11 @@ export class BendfApp {
       if (Object.keys(pathParams).length > 0) {
         requestData.queryParams = pathParams;
       }
-      
+
+      if (authData !== undefined) {
+        requestData.authData = authData;
+      }
+
       const result = await route.handler(requestData);
       
       if (route.response) {
