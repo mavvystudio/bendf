@@ -146,11 +146,24 @@ export default async function ({ req, roles }: { req: any; roles: string[] }) {
 }
 ```
 
+Role configuration:
+
+```typescript
+// src/_config.ts
+export const ROLES = [{
+  key: "ADMIN",
+  name: "Admin",
+}, {
+  key: "MEMBER",
+  name: "Member",
+}];
+```
+
 Protected routes:
 
 ```typescript
 // src/api/protectedRoute.ts
-export const roles = ["ADMIN", "USER"];
+export const roles = ["ADMIN", "MEMBER"];
 
 export const handler = async (params: {
   authData: { id: string; role: string; email: string };
