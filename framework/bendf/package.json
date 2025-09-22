@@ -1,6 +1,6 @@
 {
   "name": "bendf",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bendf backend framework",
   "type": "module",
   "main": "dist/index.js",
@@ -40,5 +40,3 @@
     "@types/node": "^20.0.0"
   }
 }
-
-
