@@ -1,0 +1,118 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  publish:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: |
+          cd framework/bendf
+          npm install
+
+      - name: Build package
+        run: |
+          cd framework/bendf
+          npm run build
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump
+        id: version
+        run: |
+          cd framework/bendf
+
+          # Get the latest commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+
+          # Determine version bump type based on commit message
+          if echo "$COMMIT_MSG" | grep -qiE "(breaking|major)"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMIT_MSG" | grep -qiE "(feat|feature|minor)"; then
+            BUMP_TYPE="minor"
+          elif echo "$COMMIT_MSG" | grep -qiE "(fix|patch|bug)"; then
+            BUMP_TYPE="patch"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Version bump type: $BUMP_TYPE"
+
+      - name: Bump version
+        id: bump
+        run: |
+          cd framework/bendf
+
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump version using npm
+          npm version ${{ steps.version.outputs.bump_type }} --no-git-tag-version
+
+          # Get new version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          cd framework/bendf
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
+      - name: Create git tag
+        run: |
+          cd framework/bendf
+          git tag "v${{ steps.bump.outputs.new_version }}"
+          git push origin "v${{ steps.bump.outputs.new_version }}"
+
+      - name: Publish to NPM
+        run: |
+          cd framework/bendf
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.bump.outputs.new_version }}
+          release_name: Release v${{ steps.bump.outputs.new_version }}
+          body: |
+            Automated release of @framework/bendf v${{ steps.bump.outputs.new_version }}
+
+            Version bump: ${{ steps.version.outputs.bump_type }}
+          draft: false
+          prerelease: false

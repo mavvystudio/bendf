@@ -18,6 +18,20 @@
     "build": "tsc -p tsconfig.json"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mavvystudio/bendf.git",
+    "directory": "framework/bendf"
+  },
+  "keywords": [
+    "framework",
+    "backend",
+    "typescript",
+    "api"
+  ],
   "dependencies": {
     "zod": "^3.22.0"
   },
