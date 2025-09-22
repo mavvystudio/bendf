@@ -7,7 +7,7 @@ export const input = z.object({
   status: z.enum(['active', 'inactive']).default('active'),
 });
 
-export const roles = ['ADMIN', 'MEMBER'];
+export const roles = ['ADMIN'];
 
 export const routePath = '/tasks';
 

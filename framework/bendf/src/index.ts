@@ -106,7 +106,13 @@ export class BendfApp {
     const url = parse(req.url || '', true);
     const method = req.method?.toUpperCase() || 'GET';
     const pathname = url.pathname || '/';
-    
+
+    // Handle docs route
+    if (pathname === '/docs' && method === 'GET') {
+      this.handleDocsRequest(res);
+      return;
+    }
+
     const routeKey = `${method}:${pathname}`;
     let route = this.routes.get(routeKey);
     let pathParams: Record<string, string> = {};
@@ -384,6 +390,235 @@ export class BendfApp {
     }
     
     return params;
+  }
+
+  private handleDocsRequest(res: ServerResponse): void {
+    const allRoutes = [...this.routes.values(), ...this.dynamicRoutes];
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bendf API Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .route {
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .route-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .method {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .method.get { background: #e7f3ff; color: #0066cc; }
+        .method.post { background: #fff3e0; color: #ff6f00; }
+        .method.put { background: #f3e5f5; color: #8e24aa; }
+        .method.delete { background: #ffebee; color: #d32f2f; }
+        .path {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 1.1rem;
+            color: #333;
+        }
+        .roles {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+        }
+        .role {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .route-body {
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+            font-size: 1rem;
+        }
+        .schema {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .no-schema {
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bendf API Documentation</h1>
+            <p>Auto-generated API documentation</p>
+        </div>
+        <div class="content">
+            ${allRoutes.map(route => `
+                <div class="route">
+                    <div class="route-header">
+                        <span class="method ${route.method.toLowerCase()}">${route.method}</span>
+                        <span class="path">${route.routePath}</span>
+                        <div class="roles">
+                            ${(route.roles || []).map(role => `<span class="role">${role}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="route-body">
+                        <div class="section">
+                            <h4>Request Body</h4>
+                            <div class="schema ${!route.input ? 'no-schema' : ''}">
+                                ${route.input ? JSON.stringify(this.zodSchemaToJson(route.input), null, 2) : 'No request body required'}
+                            </div>
+                        </div>
+                        <div class="section">
+                            <h4>Response</h4>
+                            <div class="schema ${!route.response ? 'no-schema' : ''}">
+                                ${route.response ? JSON.stringify(this.zodSchemaToJson(route.response), null, 2) : 'No response schema defined'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    </div>
+</body>
+</html>`;
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }
+
+  private zodSchemaToJson(schema: z.ZodSchema): any {
+    try {
+      // Simple schema to JSON conversion
+      // This is a basic implementation - could be enhanced
+      if (schema instanceof z.ZodObject) {
+        const shape = schema.shape;
+        const properties: any = {};
+
+        for (const [key, value] of Object.entries(shape)) {
+          properties[key] = this.zodTypeToJson(value as z.ZodSchema);
+        }
+
+        return {
+          type: 'object',
+          properties
+        };
+      }
+
+      return this.zodTypeToJson(schema);
+    } catch (error) {
+      return { type: 'unknown', error: 'Failed to parse schema' };
+    }
+  }
+
+  private zodTypeToJson(schema: z.ZodSchema): any {
+    if (schema instanceof z.ZodString) {
+      return { type: 'string' };
+    }
+    if (schema instanceof z.ZodNumber) {
+      return { type: 'number' };
+    }
+    if (schema instanceof z.ZodBoolean) {
+      return { type: 'boolean' };
+    }
+    if (schema instanceof z.ZodArray) {
+      return {
+        type: 'array',
+        items: this.zodTypeToJson(schema.element)
+      };
+    }
+    if (schema instanceof z.ZodEnum) {
+      return {
+        type: 'string',
+        enum: schema.options
+      };
+    }
+    if (schema instanceof z.ZodObject) {
+      const shape = schema.shape;
+      const properties: any = {};
+
+      for (const [key, value] of Object.entries(shape)) {
+        properties[key] = this.zodTypeToJson(value as z.ZodSchema);
+      }
+
+      return {
+        type: 'object',
+        properties
+      };
+    }
+    if (schema instanceof z.ZodOptional) {
+      return {
+        ...this.zodTypeToJson(schema.unwrap()),
+        optional: true
+      };
+    }
+    if (schema instanceof z.ZodDefault) {
+      return {
+        ...this.zodTypeToJson(schema.removeDefault()),
+        default: schema._def.defaultValue()
+      };
+    }
+
+    return { type: 'unknown' };
   }
 }
 
