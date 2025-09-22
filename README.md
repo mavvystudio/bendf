@@ -22,14 +22,14 @@ npm install bendf
 
 ### Basic Usage
 
-Add the bendf CLI command to your `package.json`:
+Add the bendf CLI commands to your `package.json`:
 
 ```json
 {
   "scripts": {
     "dev": "bendf dev",
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "build": "bendf build",
+    "start": "bendf start"
   }
 }
 ```
@@ -38,6 +38,13 @@ Then start development:
 
 ```bash
 npm run dev
+```
+
+For production:
+
+```bash
+npm run build
+npm run start
 ```
 
 ### Creating API Routes
