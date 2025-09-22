@@ -22,14 +22,22 @@ npm install bendf
 
 ### Basic Usage
 
-```typescript
-// src/index.ts
-import { createApp } from 'bendf';
+Add the bendf CLI command to your `package.json`:
 
-const app = createApp();
-app.listen(() => {
-  console.log('Server running on port 8000');
-});
+```json
+{
+  "scripts": {
+    "dev": "bendf dev",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
+}
+```
+
+Then start development:
+
+```bash
+npm run dev
 ```
 
 ### Creating API Routes
