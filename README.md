@@ -53,10 +53,10 @@ Create files in `src/api/` directory:
 
 ```typescript
 // src/api/hello.ts
-import { z } from 'zod';
+import { z } from "zod";
 
-export const routePath = '/hello';
-export const method = 'GET';
+export const routePath = "/hello";
+export const method = "GET";
 
 export const response = z.object({
   message: z.string(),
@@ -65,8 +65,8 @@ export const response = z.object({
 
 export const handler = async () => {
   return {
-    message: 'Hello from Bendf!',
-    timestamp: new Date().toISOString()
+    message: "Hello from Bendf!",
+    timestamp: new Date().toISOString(),
   };
 };
 ```
@@ -75,7 +75,7 @@ export const handler = async () => {
 
 ```typescript
 // src/api/createUser.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 export const input = z.object({
   name: z.string(),
@@ -83,8 +83,8 @@ export const input = z.object({
   age: z.number().min(18),
 });
 
-export const routePath = '/users';
-export const method = 'POST';
+export const routePath = "/users";
+export const method = "POST";
 
 export const response = z.object({
   id: z.string(),
@@ -97,9 +97,9 @@ export const handler = async (params: { input: z.infer<typeof input> }) => {
 
   // Your logic here
   return {
-    id: '123',
+    id: "123",
     name,
-    email
+    email,
   };
 };
 ```
@@ -108,11 +108,13 @@ export const handler = async (params: { input: z.infer<typeof input> }) => {
 
 ```typescript
 // src/api/getUser.ts
-export const routePath = '/users/{id}';
-export const method = 'GET';
+export const routePath = "/users/{id}";
+export const method = "GET";
 
-export const handler = async ({ queryParams }: {
-  queryParams: { id: string }
+export const handler = async ({
+  queryParams,
+}: {
+  queryParams: { id: string };
 }) => {
   return { user: { id: queryParams.id } };
 };
@@ -124,25 +126,22 @@ Create an authorizer:
 
 ```typescript
 // src/_authorizer.ts
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
-export default async function({ req, roles }: {
-  req: any,
-  roles: string[]
-}) {
+export default async function ({ req, roles }: { req: any; roles: string[] }) {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return false;
   }
 
-  const token = authHeader.replace('Bearer ', '');
+  const token = authHeader.replace("Bearer ", "");
   const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
 
   // Return user data that will be passed to handlers as authData
   return {
     id: decoded.userId,
     role: decoded.role,
-    email: decoded.email
+    email: decoded.email,
   };
 }
 ```
@@ -151,13 +150,13 @@ Protected routes:
 
 ```typescript
 // src/api/protectedRoute.ts
-export const roles = ['ADMIN', 'USER'];
+export const roles = ["ADMIN", "USER"];
 
 export const handler = async (params: {
-  authData: { id: string, role: string, email: string }
+  authData: { id: string; role: string; email: string };
 }) => {
   // Access authenticated user data
-  console.log('User:', params.authData);
+  console.log("User:", params.authData);
   return { success: true };
 };
 ```
@@ -166,20 +165,20 @@ export const handler = async (params: {
 
 ```typescript
 // src/api/upload.ts
-import { UploadedFile } from 'bendf';
+import { UploadedFile } from "bendf";
 
-export const method = 'POST';
-export const routePath = '/upload';
+export const method = "POST";
+export const routePath = "/upload";
 
 export const handler = async (params: {
-  files?: Record<string, UploadedFile | UploadedFile[]>
+  files?: Record<string, UploadedFile | UploadedFile[]>;
 }) => {
   const file = params.files?.profilePicture as UploadedFile;
 
   return {
     filename: file.filename,
     size: file.size,
-    mimetype: file.mimetype
+    mimetype: file.mimetype,
   };
 };
 ```
@@ -210,7 +209,7 @@ src/
 │   ├── createUser.ts
 │   └── getUser.ts
 ├── _authorizer.ts    # Authentication logic (optional)
-└── index.ts         # Server entry point
+└── _config.ts        # Server configuration (optional)
 ```
 
 ## Route File Format
@@ -231,15 +230,19 @@ Each route file must export:
 ```typescript
 export const input = z.object({
   email: z.string().email(),
-  password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/),
+  password: z
+    .string()
+    .min(8)
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/),
   age: z.number().min(18).max(120),
-  preferences: z.array(z.enum(['email', 'sms', 'push'])).optional()
+  preferences: z.array(z.enum(["email", "sms", "push"])).optional(),
 });
 ```
 
 ### Error Handling
 
 Bendf automatically handles:
+
 - Validation errors (400 Bad Request)
 - Authorization errors (403 Forbidden)
 - Route not found (404 Not Found)
@@ -251,10 +254,10 @@ Full type inference from Zod schemas:
 
 ```typescript
 export const handler = async (params: {
-  input: z.infer<typeof input>,
-  authData?: { id: string, role: string },
-  queryParams?: Record<string, string>,
-  files?: Record<string, UploadedFile | UploadedFile[]>
+  input: z.infer<typeof input>;
+  authData?: { id: string; role: string };
+  queryParams?: Record<string, string>;
+  files?: Record<string, UploadedFile | UploadedFile[]>;
 }) => {
   // params.input is fully typed based on your schema
 };
